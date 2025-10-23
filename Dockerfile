@@ -8,6 +8,7 @@ ARG TARGETARCH
 FROM golang:1.24-alpine AS builder
 
 ARG MINIO_VERSION
+ARG MINIO_CLEAN_VERSION
 ARG TARGETARCH
 
 ENV GOPATH=/go
@@ -39,7 +40,7 @@ RUN COMMIT_ID=$(git rev-parse --short HEAD) && \
 # Build MinIO binary with proper version flags
 RUN COMMIT_ID=$(git rev-parse --short HEAD) && \
     CGO_ENABLED=0 go build -trimpath \
-    -ldflags "-s -w -X github.com/minio/minio/cmd.ReleaseTag=${MINIO_VERSION}" \
+    -ldflags "-s -w -X github.com/minio/minio/cmd.ReleaseTag=${MINIO_VERSION} -X github.com/minio/minio/cmd.Version=${MINIO_CLEAN_VERSION:-$MINIO_VERSION}" \
     -o /usr/bin/minio .
 
 # Verify the binary works

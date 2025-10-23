@@ -23,8 +23,7 @@ on:
 
 env:
   GITHUB_REGISTRY: ghcr.io
-  DOCKER_REGISTRY: docker.io
-  IMAGE_NAME: coollabsio/minio
+  IMAGE_NAME: ahjohannessen/minio
 
 jobs:
   check-release:
@@ -93,13 +92,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to ${{ env.DOCKER_REGISTRY }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Build and Push Image (amd64)
         uses: docker/build-push-action@v6
         with:
@@ -109,7 +101,6 @@ jobs:
           build-args: |
             MINIO_VERSION=${{ needs.check-release.outputs.version }}
           tags: |
-            ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-amd64
             ${{ env.GITHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -134,13 +125,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to ${{ env.DOCKER_REGISTRY }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Build and Push Image (aarch64)
         uses: docker/build-push-action@v6
         with:
@@ -149,8 +133,8 @@ jobs:
           push: true
           build-args: |
             MINIO_VERSION=${{ needs.check-release.outputs.version }}
+            MINIO_CLEAN_VERSION=${{ needs.check-release.outputs.clean_version }}
           tags: |
-            ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-arm64
             ${{ env.GITHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -174,13 +158,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to ${{ env.DOCKER_REGISTRY }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Create & publish manifest on ${{ env.GITHUB_REGISTRY }}
         run: |
           TAGS="-t ${{ env.GITHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}"
@@ -196,20 +173,6 @@ jobs:
           ${{ env.GITHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-amd64 \
           ${{ env.GITHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-arm64
 
-      - name: Create & publish manifest on ${{ env.DOCKER_REGISTRY }}
-        run: |
-          TAGS="-t ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}"
-          TAGS="$TAGS -t ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.clean_version }}"
-
-          # Only add latest tag if skip_latest_tag is false
-          if [ "${{ github.event.inputs.skip_latest_tag }}" != "true" ]; then
-            TAGS="$TAGS -t ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          fi
-
-          docker buildx imagetools create \
-          $TAGS \
-          ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-amd64 \
-          ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-arm64
 
       - name: Summary
         run: |
@@ -217,5 +180,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Images published:" >> $GITHUB_STEP_SUMMARY
           echo "- GHCR: ${{ env.GITHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Docker Hub: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Latest: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "- Latest: ${{ env.GITHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
