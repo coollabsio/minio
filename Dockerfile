@@ -32,14 +32,43 @@ RUN git clone https://github.com/minio/minio.git . && \
         echo "Building from latest master"; \
     fi
 
-# Get commit info for ldflags
-RUN COMMIT_ID=$(git rev-parse --short HEAD) && \
-    echo "Building MinIO version: $MINIO_VERSION commit: $COMMIT_ID"
+# Get commit info and prepare version variables for ldflags
+RUN COMMIT_ID=$(git rev-parse HEAD) && \
+    SHORT_COMMIT_ID=$(git rev-parse --short=12 HEAD) && \
+    COMMIT_TIME=$(git show -s --format=%ci HEAD) && \
+    # Extract release tag: try git first, fallback to MINIO_VERSION, then DEVELOPMENT tag
+    RELEASE_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "${MINIO_VERSION}") && \
+    if [ "$RELEASE_TAG" = "latest" ]; then \
+        RELEASE_TAG="DEVELOPMENT.$(date -u +%Y-%m-%dT%H-%M-%SZ)"; \
+    fi && \
+    # Convert release tag to RFC3339 timestamp format for Version field
+    # Example: RELEASE.2025-09-07T16-13-09Z -> 2025-09-07T16:13:09Z
+    VERSION_TIME=$(echo ${RELEASE_TAG} | sed 's/RELEASE\.//' | sed 's/T/ /' | sed 's/-/:/3' | sed 's/-/:/3' | sed 's/ /T/') && \
+    COPYRIGHT_YEAR=$(date -d "${COMMIT_TIME}" +%Y 2>/dev/null || date -j -f "%Y-%m-%d %H:%M:%S %z" "${COMMIT_TIME}" +%Y 2>/dev/null || date +%Y) && \
+    echo "Building MinIO version: $RELEASE_TAG commit: $SHORT_COMMIT_ID" && \
+    echo "Version time: $VERSION_TIME" && \
+    echo "Commit ID: $COMMIT_ID" && \
+    echo "Copyright year: $COPYRIGHT_YEAR"
 
-# Build MinIO binary with proper version flags
-RUN COMMIT_ID=$(git rev-parse --short HEAD) && \
+# Build MinIO binary with all proper version flags matching official build
+RUN COMMIT_ID=$(git rev-parse HEAD) && \
+    SHORT_COMMIT_ID=$(git rev-parse --short=12 HEAD) && \
+    COMMIT_TIME=$(git show -s --format=%ci HEAD) && \
+    # Extract release tag: try git first, fallback to MINIO_VERSION, then DEVELOPMENT tag
+    RELEASE_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "${MINIO_VERSION}") && \
+    if [ "$RELEASE_TAG" = "latest" ]; then \
+        RELEASE_TAG="DEVELOPMENT.$(date -u +%Y-%m-%dT%H-%M-%SZ)"; \
+    fi && \
+    # Convert release tag to RFC3339 timestamp format for Version field
+    VERSION_TIME=$(echo ${RELEASE_TAG} | sed 's/RELEASE\.//' | sed 's/T/ /' | sed 's/-/:/3' | sed 's/-/:/3' | sed 's/ /T/') && \
+    COPYRIGHT_YEAR=$(date -d "${COMMIT_TIME}" +%Y 2>/dev/null || date -j -f "%Y-%m-%d %H:%M:%S %z" "${COMMIT_TIME}" +%Y 2>/dev/null || date +%Y) && \
     CGO_ENABLED=0 go build -trimpath \
-    -ldflags "-s -w -X github.com/minio/minio/cmd.ReleaseTag=${MINIO_VERSION}" \
+    -ldflags "-s -w \
+    -X github.com/minio/minio/cmd.Version=${VERSION_TIME} \
+    -X github.com/minio/minio/cmd.ReleaseTag=${RELEASE_TAG} \
+    -X github.com/minio/minio/cmd.CommitID=${COMMIT_ID} \
+    -X github.com/minio/minio/cmd.ShortCommitID=${SHORT_COMMIT_ID} \
+    -X github.com/minio/minio/cmd.CopyrightYear=${COPYRIGHT_YEAR}" \
     -o /usr/bin/minio .
 
 # Verify the binary works
